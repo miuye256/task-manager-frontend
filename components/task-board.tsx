@@ -1,14 +1,8 @@
 "use client";
 
+import { Task, TaskInput } from "@/lib/task";
 import { startTransition, useEffect, useState } from "react";
-import {
-  addTask,
-  deleteTask,
-  getTasks,
-  updateTask,
-  type Task,
-  type TaskInput,
-} from "@/lib/api";
+import { addTask, deleteTask, getTasks, updateTask } from "@/lib/api";
 
 type TaskFormState = {
   title: string;
