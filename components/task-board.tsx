@@ -1,7 +1,12 @@
 "use client";
 
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Task, TaskInput } from "@/lib/task";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useState } from "react";
 import { addTask, deleteTask, getTasks, updateTask } from "@/lib/api";
 
 type TaskFormState = {
@@ -12,6 +17,11 @@ type TaskFormState = {
 };
 
 type FormMode = "create" | "edit";
+
+type UpdateTaskVariables = {
+  id: number;
+  task: TaskInput;
+};
 
 type TaskColumnProps = {
   title: string;
@@ -24,6 +34,8 @@ type TaskColumnProps = {
   onEdit: (task: Task) => void;
   onToggle: (task: Task) => void;
 };
+
+const tasksQueryKey = ["tasks"] as const;
 
 function createEmptyForm(isComplete = false): TaskFormState {
   return {
@@ -321,9 +333,7 @@ function TaskColumn({
 }
 
 export function TaskBoard() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -331,69 +341,50 @@ export function TaskBoard() {
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [form, setForm] = useState<TaskFormState>(createEmptyForm());
   const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    data: tasks = [],
+    error: tasksQueryError,
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery({
+    queryKey: tasksQueryKey,
+    queryFn: getTasks,
+  });
 
-  async function loadTasks(options?: { initial?: boolean }) {
-    if (options?.initial) {
-      setIsLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
+  const invalidateTasks = () =>
+    queryClient.invalidateQueries({ queryKey: tasksQueryKey });
 
-    setError(null);
+  const createTaskMutation = useMutation({
+    mutationFn: addTask,
+    onSuccess: invalidateTasks,
+  });
 
-    try {
-      const nextTasks = await getTasks();
-      startTransition(() => {
-        setTasks(nextTasks);
-      });
-    } catch (error) {
-      setError(getErrorMessage(error, "タスクの読み込みに失敗しました。"));
-    } finally {
-      if (options?.initial) {
-        setIsLoading(false);
-      } else {
-        setIsRefreshing(false);
-      }
-    }
-  }
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ id, task }: UpdateTaskVariables) => updateTask(id, task),
+    onSuccess: invalidateTasks,
+  });
 
-  useEffect(() => {
-    let isMounted = true;
+  const toggleTaskMutation = useMutation({
+    mutationFn: ({ id, task }: UpdateTaskVariables) => updateTask(id, task),
+    onSuccess: invalidateTasks,
+  });
 
-    async function loadInitialTasks() {
-      setIsLoading(true);
-      setError(null);
+  const deleteTaskMutation = useMutation({
+    mutationFn: deleteTask,
+    onSuccess: invalidateTasks,
+  });
 
-      try {
-        const nextTasks = await getTasks();
+  const isSubmitting =
+    createTaskMutation.isPending ||
+    updateTaskMutation.isPending ||
+    deleteTaskMutation.isPending;
 
-        if (!isMounted) {
-          return;
-        }
-
-        startTransition(() => {
-          setTasks(nextTasks);
-        });
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        setError(getErrorMessage(error, "タスクの読み込みに失敗しました。"));
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void loadInitialTasks();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const displayError =
+    error ??
+    (tasksQueryError
+      ? getErrorMessage(tasksQueryError, "タスクの読み込みに失敗しました。")
+      : null);
 
   function openCreateSheet(isComplete = false) {
     setFormMode("create");
@@ -430,17 +421,15 @@ export function TaskBoard() {
       return;
     }
 
-    setIsSubmitting(true);
+    setError(null);
     setFormError(null);
 
     try {
       if (formMode === "create") {
-        await addTask(input);
+        await createTaskMutation.mutateAsync(input);
       } else if (editingTaskId !== null) {
-        await updateTask(editingTaskId, input);
+        await updateTaskMutation.mutateAsync({ id: editingTaskId, task: input });
       }
-
-      await loadTasks();
 
       startTransition(() => {
         setIsSheetOpen(false);
@@ -456,20 +445,22 @@ export function TaskBoard() {
             : "タスクの更新に失敗しました。",
         ),
       );
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
   async function handleToggle(task: Task) {
+    setError(null);
+
     try {
-      await updateTask(task.id, {
-        title: task.title,
-        description: task.description,
-        dueDate: toDateInputValue(task.dueDate) || undefined,
-        isComplete: !task.isComplete,
+      await toggleTaskMutation.mutateAsync({
+        id: task.id,
+        task: {
+          title: task.title,
+          description: task.description,
+          dueDate: toDateInputValue(task.dueDate) || undefined,
+          isComplete: !task.isComplete,
+        },
       });
-      await loadTasks();
     } catch (error) {
       setError(getErrorMessage(error, "タスク状態の更新に失敗しました。"));
     }
@@ -487,12 +478,11 @@ export function TaskBoard() {
       return;
     }
 
-    setIsSubmitting(true);
+    setError(null);
     setFormError(null);
 
     try {
-      await deleteTask(editingTaskId);
-      await loadTasks();
+      await deleteTaskMutation.mutateAsync(editingTaskId);
 
       startTransition(() => {
         setIsSheetOpen(false);
@@ -501,8 +491,6 @@ export function TaskBoard() {
       });
     } catch (error) {
       setFormError(getErrorMessage(error, "タスクの削除に失敗しました。"));
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
@@ -534,11 +522,14 @@ export function TaskBoard() {
 
               <button
                 type="button"
-                onClick={() => void loadTasks()}
-                disabled={isLoading || isRefreshing}
+                onClick={() => {
+                  setError(null);
+                  void refetch();
+                }}
+                disabled={isLoading || isRefetching}
                 className="rounded-full border border-black/5 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isRefreshing ? "更新中..." : "再読み込み"}
+                {isRefetching ? "更新中..." : "再読み込み"}
               </button>
 
               <button
@@ -552,9 +543,9 @@ export function TaskBoard() {
           </div>
         </header>
 
-        {error ? (
+        {displayError ? (
           <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
+            {displayError}
           </div>
         ) : null}
 
