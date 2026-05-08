@@ -1,13 +1,9 @@
 "use client";
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useTasks } from "@/hooks/use-tasks";
+import { getErrorMessage } from "@/lib/error-message";
 import { Task, TaskInput } from "@/lib/task";
 import { startTransition, useState } from "react";
-import { addTask, deleteTask, getTasks, updateTask } from "@/lib/api";
 
 type TaskFormState = {
   title: string;
@@ -17,11 +13,6 @@ type TaskFormState = {
 };
 
 type FormMode = "create" | "edit";
-
-type UpdateTaskVariables = {
-  id: number;
-  task: TaskInput;
-};
 
 type TaskColumnProps = {
   title: string;
@@ -35,8 +26,6 @@ type TaskColumnProps = {
   onToggle: (task: Task) => void;
 };
 
-const tasksQueryKey = ["tasks"] as const;
-
 function createEmptyForm(isComplete = false): TaskFormState {
   return {
     title: "",
@@ -44,14 +33,6 @@ function createEmptyForm(isComplete = false): TaskFormState {
     dueDate: "",
     isComplete,
   };
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return fallback;
 }
 
 function toDateInputValue(value?: string) {
@@ -333,58 +314,24 @@ function TaskColumn({
 }
 
 export function TaskBoard() {
-  const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [form, setForm] = useState<TaskFormState>(createEmptyForm());
   const [formError, setFormError] = useState<string | null>(null);
   const {
-    data: tasks = [],
-    error: tasksQueryError,
+    tasks,
+    errorMessage,
     isLoading,
-    isRefetching,
-    refetch,
-  } = useQuery({
-    queryKey: tasksQueryKey,
-    queryFn: getTasks,
-  });
-
-  const invalidateTasks = () =>
-    queryClient.invalidateQueries({ queryKey: tasksQueryKey });
-
-  const createTaskMutation = useMutation({
-    mutationFn: addTask,
-    onSuccess: invalidateTasks,
-  });
-
-  const updateTaskMutation = useMutation({
-    mutationFn: ({ id, task }: UpdateTaskVariables) => updateTask(id, task),
-    onSuccess: invalidateTasks,
-  });
-
-  const toggleTaskMutation = useMutation({
-    mutationFn: ({ id, task }: UpdateTaskVariables) => updateTask(id, task),
-    onSuccess: invalidateTasks,
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: deleteTask,
-    onSuccess: invalidateTasks,
-  });
-
-  const isSubmitting =
-    createTaskMutation.isPending ||
-    updateTaskMutation.isPending ||
-    deleteTaskMutation.isPending;
-
-  const displayError =
-    error ??
-    (tasksQueryError
-      ? getErrorMessage(tasksQueryError, "タスクの読み込みに失敗しました。")
-      : null);
+    isRefreshing,
+    isSubmitting,
+    clearError,
+    refreshTasks,
+    createTask,
+    updateTask,
+    toggleTask,
+    deleteTask,
+  } = useTasks();
 
   function openCreateSheet(isComplete = false) {
     setFormMode("create");
@@ -421,14 +368,14 @@ export function TaskBoard() {
       return;
     }
 
-    setError(null);
+    clearError();
     setFormError(null);
 
     try {
       if (formMode === "create") {
-        await createTaskMutation.mutateAsync(input);
+        await createTask(input);
       } else if (editingTaskId !== null) {
-        await updateTaskMutation.mutateAsync({ id: editingTaskId, task: input });
+        await updateTask(editingTaskId, input);
       }
 
       startTransition(() => {
@@ -449,21 +396,7 @@ export function TaskBoard() {
   }
 
   async function handleToggle(task: Task) {
-    setError(null);
-
-    try {
-      await toggleTaskMutation.mutateAsync({
-        id: task.id,
-        task: {
-          title: task.title,
-          description: task.description,
-          dueDate: toDateInputValue(task.dueDate) || undefined,
-          isComplete: !task.isComplete,
-        },
-      });
-    } catch (error) {
-      setError(getErrorMessage(error, "タスク状態の更新に失敗しました。"));
-    }
+    await toggleTask(task);
   }
 
   async function handleDelete() {
@@ -478,11 +411,11 @@ export function TaskBoard() {
       return;
     }
 
-    setError(null);
+    clearError();
     setFormError(null);
 
     try {
-      await deleteTaskMutation.mutateAsync(editingTaskId);
+      await deleteTask(editingTaskId);
 
       startTransition(() => {
         setIsSheetOpen(false);
@@ -522,14 +455,11 @@ export function TaskBoard() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setError(null);
-                  void refetch();
-                }}
-                disabled={isLoading || isRefetching}
+                onClick={() => void refreshTasks()}
+                disabled={isLoading || isRefreshing}
                 className="rounded-full border border-black/5 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isRefetching ? "更新中..." : "再読み込み"}
+                {isRefreshing ? "更新中..." : "再読み込み"}
               </button>
 
               <button
@@ -543,9 +473,9 @@ export function TaskBoard() {
           </div>
         </header>
 
-        {displayError ? (
+        {errorMessage ? (
           <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {displayError}
+            {errorMessage}
           </div>
         ) : null}
 
