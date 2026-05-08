@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { taskSchema, taskListSchema, Task, TaskInput } from "./task";
+import {
+  taskSchema,
+  taskListSchema,
+  Task,
+  TaskInput,
+  TaskPatchInput,
+} from "./task";
 import { ApiError, BackendErrorResponse } from "./api-error";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:5000";
@@ -232,6 +238,22 @@ export async function updateTask(id: number, task: TaskInput): Promise<void> {
 
   await request(`/tasks/${id}`, errorDisplay, {
     method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(task),
+  });
+}
+
+export async function patchTask(
+  id: number,
+  task: TaskPatchInput,
+): Promise<void> {
+  const errorDisplay = {
+    title: "タスクの部分更新に失敗しました。",
+    notFoundMessage: "対象のタスクが見つかりませんでした。",
+  };
+
+  await request(`/tasks/${id}`, errorDisplay, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(task),
   });

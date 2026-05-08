@@ -9,9 +9,10 @@ export const taskSchema = z.object({
 });
 
 export const taskInputSchema = taskSchema.omit({ id: true });
+export const taskPatchSchema = taskInputSchema.partial();
 
 export const taskListSchema = z.array(taskSchema);
 
 export type Task = z.infer<typeof taskSchema>;
 export type TaskInput = z.infer<typeof taskInputSchema>;
-export type TaskPatchInput = Partial<TaskInput>;
+export type TaskPatchInput = z.infer<typeof taskPatchSchema>;

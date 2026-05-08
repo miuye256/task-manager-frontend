@@ -3,14 +3,19 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { addTask, deleteTask, getTasks, updateTask } from "@/lib/api";
+import { addTask, deleteTask, getTasks, patchTask, updateTask } from "@/lib/api";
 import { getErrorMessage } from "@/lib/error-message";
-import { Task, TaskInput } from "@/lib/task";
+import { Task, TaskInput, TaskPatchInput } from "@/lib/task";
 import { useState } from "react";
 
 type UpdateTaskVariables = {
   id: number;
   task: TaskInput;
+};
+
+type PatchTaskVariables = {
+  id: number;
+  task: TaskPatchInput;
 };
 
 const tasksQueryKey = ["tasks"] as const;
@@ -44,7 +49,7 @@ export function useTasks() {
   });
 
   const toggleTaskMutation = useMutation({
-    mutationFn: ({ id, task }: UpdateTaskVariables) => updateTask(id, task),
+    mutationFn: ({ id, task }: PatchTaskVariables) => patchTask(id, task),
     onSuccess: invalidateTasks,
   });
 
@@ -56,6 +61,7 @@ export function useTasks() {
   const isSubmitting =
     createTaskMutation.isPending ||
     updateTaskMutation.isPending ||
+    toggleTaskMutation.isPending ||
     deleteTaskMutation.isPending;
 
   const errorMessage =
@@ -90,9 +96,6 @@ export function useTasks() {
       await toggleTaskMutation.mutateAsync({
         id: task.id,
         task: {
-          title: task.title,
-          description: task.description,
-          dueDate: task.dueDate ? task.dueDate.slice(0, 10) : undefined,
           isComplete: !task.isComplete,
         },
       });
