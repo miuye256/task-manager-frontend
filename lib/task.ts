@@ -15,20 +15,20 @@ function isValidDateOnly(value: string) {
   );
 }
 
-export const taskSchema = z.object({
-  id: z.number(),
-  title: z.string(),
-  description: z.string().optional(),
-  dueDate: z.string().optional(),
-  isComplete: z.boolean(),
-});
-
 const dueDateInputSchema = z
   .string()
   .refine(
     isValidDateOnly,
     "期限は YYYY-MM-DD 形式の正しい日付で入力してください。",
   );
+
+export const taskSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  description: z.string().optional(),
+  dueDate: dueDateInputSchema.optional(),
+  isComplete: z.boolean(),
+});
 
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, "タイトルを入力してください。"),
