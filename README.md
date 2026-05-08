@@ -79,7 +79,10 @@ export interface Task {
 
 - `description` と `dueDate` は未設定なら省略してください
 - `description: null` と `dueDate: null` はフロントエンドの schema では受け付けません
+- `dueDate` を返す場合は、任意の文字列ではなく `YYYY-MM-DD` 形式の正しい日付文字列にしてください
 - 空文字を返すより、省略する方が安全です
+- `PUT` で optional 項目が省略されていた場合は、未設定への更新として扱ってください
+- `PATCH` で optional 項目が省略されていた場合は、既存値を維持してください
 
 ASP.NET Core 側で DTO に nullable プロパティを使う場合は、JSON レスポンスで `null` を出さないように注意してください。
 
@@ -232,6 +235,8 @@ NEXT_PUBLIC_API_BASE=http://localhost:5000
 
 - `title` と `isComplete` は常に含まれます
 - `description` と `dueDate` は未設定なら省略されます
+- `description` が省略されていたら、バックエンドは `description` を未設定に更新してください
+- `dueDate` が省略されていたら、バックエンドは `dueDate` を未設定に更新してください
 - 部分更新には使いません
 
 許容レスポンス:
@@ -270,8 +275,11 @@ NEXT_PUBLIC_API_BASE=http://localhost:5000
 要件:
 
 - ボディは部分項目のみでよいです
+- `description` が省略されていたら既存値を維持してください
+- `dueDate` が省略されていたら既存値を維持してください
 - 現在の UI では主に完了切り替えに使います
 - `dueDate` を送る場合は `YYYY-MM-DD`
+- 現在の契約では `description` と `dueDate` を明示的に未設定へ変更する `PATCH` ボディは定義していません
 
 許容レスポンス:
 
@@ -315,7 +323,9 @@ NEXT_PUBLIC_API_BASE=http://localhost:5000
 - `id` は数値
 - `isComplete` は真偽値
 - `description` と `dueDate` は文字列または省略
+- `dueDate` は `YYYY-MM-DD` 形式の正しい日付文字列であること
 - `description: null` や `dueDate: null` は不可
+- ISO 8601 の日時文字列は不可
 
 ## エラー応答
 
@@ -413,6 +423,8 @@ NEXT_PUBLIC_API_BASE=http://localhost:5000
 
 - optional 項目が未設定のときは `null` ではなく省略を推奨します
 - 少なくとも `description` と `dueDate` は `null` を返さないでください
+- `PUT` で optional 項目が省略されていた場合は、未設定へ更新してください
+- `PATCH` で optional 項目が省略されていた場合は、既存値を維持してください
 - `200 OK` で本文を返す場合は JSON にしてください
 
 ### バリデーション
