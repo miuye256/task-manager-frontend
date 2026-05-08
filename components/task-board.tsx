@@ -12,9 +12,10 @@ import { getErrorMessage } from "@/lib/error-message";
 import {
   createEmptyForm,
   FormMode,
+  TaskFormErrors,
   TaskFormState,
   toFormState,
-  toTaskInput,
+  validateTaskForm,
 } from "@/lib/task-form";
 import { sortTasks } from "@/lib/task-date";
 import { Task } from "@/lib/task";
@@ -24,6 +25,7 @@ export function TaskBoard() {
   const [formMode, setFormMode] = useState<FormMode>("create");
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [form, setForm] = useState<TaskFormState>(createEmptyForm());
+  const [fieldErrors, setFieldErrors] = useState<TaskFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const {
     tasks,
@@ -43,6 +45,7 @@ export function TaskBoard() {
     setFormMode("create");
     setEditingTaskId(null);
     setForm(createEmptyForm(isComplete));
+    setFieldErrors({});
     setFormError(null);
     setIsSheetOpen(true);
   }
@@ -51,6 +54,7 @@ export function TaskBoard() {
     setFormMode("edit");
     setEditingTaskId(task.id);
     setForm(toFormState(task));
+    setFieldErrors({});
     setFormError(null);
     setIsSheetOpen(true);
   }
@@ -61,6 +65,7 @@ export function TaskBoard() {
     }
 
     setIsSheetOpen(false);
+    setFieldErrors({});
     setFormError(null);
   }
 
@@ -69,32 +74,46 @@ export function TaskBoard() {
       ...current,
       ...patch,
     }));
+
+    setFormError(null);
+    setFieldErrors((current) => {
+      const next = { ...current };
+
+      for (const key of Object.keys(patch) as Array<keyof TaskFormState>) {
+        delete next[key];
+      }
+
+      return next;
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const input = toTaskInput(form);
+    const validation = validateTaskForm(form);
 
-    if (!input.title) {
-      setFormError("タイトルを入力してください。");
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      setFormError("入力内容を確認してください。");
       return;
     }
 
     clearError();
+    setFieldErrors({});
     setFormError(null);
 
     try {
       if (formMode === "create") {
-        await createTask(input);
+        await createTask(validation.data);
       } else if (editingTaskId !== null) {
-        await updateTask(editingTaskId, input);
+        await updateTask(editingTaskId, validation.data);
       }
 
       startTransition(() => {
         setIsSheetOpen(false);
         setEditingTaskId(null);
         setForm(createEmptyForm());
+        setFieldErrors({});
       });
     } catch (error) {
       setFormError(
@@ -227,6 +246,7 @@ export function TaskBoard() {
         isOpen={isSheetOpen}
         formMode={formMode}
         form={form}
+        fieldErrors={fieldErrors}
         formError={formError}
         isSubmitting={isSubmitting}
         onClose={closeSheet}

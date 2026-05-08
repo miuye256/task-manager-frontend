@@ -1,11 +1,12 @@
 import type { FormEvent } from 'react';
 
-import { FormMode, TaskFormState } from '@/lib/task-form';
+import { FormMode, TaskFormErrors, TaskFormState } from '@/lib/task-form';
 
 type TaskSheetProps = {
   isOpen: boolean;
   formMode: FormMode;
   form: TaskFormState;
+  fieldErrors: TaskFormErrors;
   formError: string | null;
   isSubmitting: boolean;
   onClose: () => void;
@@ -18,6 +19,7 @@ export function TaskSheet({
   isOpen,
   formMode,
   form,
+  fieldErrors,
   formError,
   isSubmitting,
   onClose,
@@ -78,6 +80,9 @@ export function TaskSheet({
                 placeholder="例: 来週のデモ資料を仕上げる"
                 className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-200"
               />
+              {fieldErrors.title ? (
+                <p className="mt-2 text-sm text-rose-700">{fieldErrors.title}</p>
+              ) : null}
             </label>
 
             <label className="block">
@@ -105,6 +110,9 @@ export function TaskSheet({
                 onChange={(event) => onFormChange({ dueDate: event.target.value })}
                 className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-200"
               />
+              {fieldErrors.dueDate ? (
+                <p className="mt-2 text-sm text-rose-700">{fieldErrors.dueDate}</p>
+              ) : null}
             </label>
 
             <label className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-4">
@@ -125,6 +133,9 @@ export function TaskSheet({
                 </p>
               </div>
             </label>
+            {fieldErrors.isComplete ? (
+              <p className="text-sm text-rose-700">{fieldErrors.isComplete}</p>
+            ) : null}
           </div>
 
           <div className="border-t border-black/5 px-5 py-4 sm:px-6">
